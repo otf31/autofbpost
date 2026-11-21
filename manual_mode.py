@@ -45,8 +45,9 @@ class ManualMode(ModalScreen[None]):
 
     def compose(self) -> ComposeResult:
         with Grid():
+            yield Label("Connect your account", classes="modal-title")
             yield Label(MANUAL_MODE_INTRO)
-            yield Button("Close", "error", action="app.pop_screen")
+            yield Button("Close", action="app.pop_screen")
 
     def on_mount(self):
         self.launch_browser()

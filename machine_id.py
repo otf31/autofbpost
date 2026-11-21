@@ -12,10 +12,10 @@ from subscription import get_device_id
 class MachineId(ModalScreen):
     def compose(self) -> ComposeResult:
         with Grid():
-            yield Label("Your device ID", id="id-label")
+            yield Label("Your device ID", id="id-label", classes="modal-title")
             yield Label(get_device_id(), id="id-value")
             yield Button(
-                "Close", variant="error", id="close-button", action="app.pop_screen"
+                "Close", id="close-button", action="app.pop_screen"
             )
             yield Button("Copy", variant="primary", id="copy-button")
 

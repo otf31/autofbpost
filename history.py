@@ -1,17 +1,17 @@
 import csv
 
 from fs import open_fs
-from fs.errors import FileExpected, ResourceNotFound
+from fs.errors import FSError
 from textual.app import ComposeResult
 from textual.containers import Center, Container
-from textual.screen import Screen
 from textual.widgets import Button, DataTable, Label
 
 from common_functions import load_configuration
 from constants import HiSTORY_FILE_PATH
+from ui import PageHeading, WorkspaceScreen
 
 
-class History(Screen):
+class History(WorkspaceScreen):
     DEFAULT_CSS = """
     History {
         padding: 1 2;
@@ -38,11 +38,13 @@ class History(Screen):
         self.posts_folder_path = config["POSTS_FOLDER_PATH"]
 
     def compose(self) -> ComposeResult:
-        yield Label("History", classes="header")
-        with Container():
-            yield DataTable()
-        with Center():
-            yield Button("Close", variant="error", action="app.pop_screen")
+        yield PageHeading("History", "WORKSPACE / A record of your publishing activity")
+        with Container(id="history-panel"):
+            yield Label("ACTIVITY ARCHIVE", classes="section-title")
+            yield DataTable(zebra_stripes=True)
+            yield Label("No publications yet\nYour publishing activity will appear here after your first run.", id="history-empty", classes="empty-state", markup=False)
+        with Center(classes="action-bar"):
+            yield Button("Close", action="app.pop_screen")
 
     def load(self):
         data_table = self.query_one(DataTable)
@@ -50,18 +52,22 @@ class History(Screen):
         # Clear data table, rows and columns
         data_table.clear(columns=True)
 
-        with open_fs(self.posts_folder_path) as posts_folder_fs:
-            try:
+        empty = self.query_one("#history-empty", Label)
+        try:
+            with open_fs(self.posts_folder_path) as posts_folder_fs:
                 with posts_folder_fs.open(HiSTORY_FILE_PATH) as history_file:
                     reader = csv.reader(history_file, delimiter=";")
-
-                    data_table.add_columns(*next(reader))
-
-                    for row in reader:
-                        data_table.add_row(*row)
-            except (ResourceNotFound, FileExpected):
-                self.app.notify("No history file found", severity="warning")
-                self.app.pop_screen()
+                    header = next(reader, None)
+                    if header:
+                        data_table.add_columns(*header)
+                        for row in reader:
+                            if row:
+                                data_table.add_row(*row)
+            empty.update("No publications yet\nYour publishing activity will appear here after your first run.")
+        except (FSError, OSError, UnicodeError, csv.Error):
+            empty.update("No history available\nCheck your content library in Settings, or publish to create your first record.")
+        data_table.display = data_table.row_count > 0
+        empty.display = not data_table.display
 
     def on_screen_resume(self):
         self.load()

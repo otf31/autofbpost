@@ -13,20 +13,20 @@ from playwright.async_api import Error, Page, async_playwright, expect
 from rich.pretty import Pretty
 from textual import on, work
 from textual.app import ComposeResult
-from textual.containers import Center, Horizontal, VerticalGroup
+from textual.containers import Center, Horizontal, VerticalGroup, VerticalScroll
 from textual.reactive import reactive
-from textual.screen import Screen
 from textual.widgets import Button, Label, ProgressBar, RichLog, Select
 
 from browser_utils import get_fb_lang, is_logged_in, navigate
 from common_functions import (
     StyledPanel,
     get_locales_fb_strings,
-    panels_group,
     load_configuration,
+    panels_group,
     wait_random_seconds,
 )
 from constants import SUPPORTED_FB_LANGUAGES, HiSTORY_FILE_PATH
+from ui import PageHeading, WorkspaceScreen
 
 
 def pick_random_description(descriptions: list[str]) -> str:
@@ -134,7 +134,7 @@ def get_images(images_folder_path: str) -> list[str]:
     return sorted(images, key=natural_sort_key)
 
 
-class Publish(Screen):
+class Publish(WorkspaceScreen):
     DEFAULT_CSS = """
     Publish {
         padding: 1 2;
@@ -199,32 +199,55 @@ class Publish(Screen):
         self.publication_filters: list[str] | None = None
         self.groups: list[list[str]] | None = None
         self.num_groups: int = 0
+        self.validation_errors: list[str] = []
+        self.post_ready = False
 
     def compose(self) -> ComposeResult:
-        yield Label("Publish", classes="header")
-        with Horizontal():
-            with VerticalGroup():
-                yield Select(options=self.available_posts)
+        yield PageHeading("Publication studio", "WORKSPACE / Select content, review destinations, then publish")
+        yield Label("01  SELECT    /    02  REVIEW    /    03  PUBLISH", id="publish-steps")
+        with VerticalGroup(id="publish-controls"):
+            with VerticalGroup(id="post-selector"):
+                yield Select(options=self.available_posts, prompt="Choose a post from your library")
                 yield Label(id="extra-info", variant="accent")
-            yield Button("Start", id="start")
-            yield Button(
-                "Stop & Quit", id="stop", variant="error", action="app.pop_screen"
-            )
-        yield RichLog()
-        with Center():
+            with Horizontal(id="publish-actions"):
+                yield Button("Select a post", id="start", variant="primary", disabled=True)
+                yield Button("Check again", id="recheck")
+                yield Button(
+                    "Stop & Quit", id="stop", variant="error", action="app.pop_screen"
+                )
+        with Horizontal(id="studio-panels"):
+            with VerticalScroll(id="preview"):
+                yield Label("CONTENT / PREVIEW", classes="section-title")
+                yield Label("Select a post to review its content and destination groups.", id="preview-text", classes="empty-state", markup=False)
+                with VerticalGroup(id="preview-details"):
+                    for section in ["description", "images", "groups"]:
+                        with VerticalGroup(classes="preview-block"):
+                            yield Label("", id=f"{section}-heading", classes="section-title")
+                            yield Label("", id=f"preview-{section}", markup=False, classes="preview-body")
+                yield Label("", id="validation-errors", markup=False)
+            with VerticalGroup(id="activity"):
+                yield Label("LIVE / ACTIVITY", classes="section-title")
+                yield Label("Publishing activity will appear here once you start.", classes="activity-placeholder")
+                yield RichLog()
+        with Center(id="progress-area", classes="action-bar"):
             yield ProgressBar(show_eta=False)
-        with Center():
-            yield Button("Close", id="close", variant="error", action="app.pop_screen")
+        with Center(classes="action-bar"):
+            yield Button("Close", id="close", action="app.pop_screen")
 
     def on_screen_resume(self):
         self.load_options()
 
     @on(Select.Changed)
     def select_changed(self, event: Select.Changed):
-        """
-        This method will validate files and directories, if there is an error, then the
-        select will have its default value (NULL)
-        """
+        """Keep the selection visible while showing validation and preview details."""
+        self.post_ready = False
+        self.validation_errors = []
+        start = self.query_one("#start", Button)
+        start.disabled = True
+        start.label = "Select a valid post"
+        self.query_one("#validation-errors", Label).update("")
+        self.query_one("#preview-details").display = False
+        self.query_one("#preview-text", Label).update("Select a post to review its content and destination groups.")
         extra_info = self.query_one("#extra-info", Label)
 
         if (post := event.value) == Select.NULL:
@@ -240,7 +263,7 @@ class Publish(Screen):
 
         # Validate images folder
         first_validation = self.validate_path(
-            self.images_folder_path, "dir", dir_file_type=["*.jpg", "*.jpeg", "*.png"]
+            self.images_folder_path, "dir", min_files=1, dir_file_type=["*.jpg", "*.jpeg", "*.png"]
         )
 
         # Validate descriptions folder
@@ -260,17 +283,35 @@ class Publish(Screen):
             and third_validation
             and fourth_validation
         ):
-            self.query_one(Select).value = Select.NULL
-
             return
 
-        # Filters
-        self.publication_filters = read_filters(self.filters_file_path)
-
-        # Groups
-        self.groups = read_groups(self.groups_file_path, self.publication_filters)
-
+        try:
+            self.publication_filters = read_filters(self.filters_file_path)
+            self.groups = read_groups(self.groups_file_path, self.publication_filters)
+            images = get_images(self.images_folder_path)
+            descriptions = get_descriptions(self.descriptions_folder_path)
+        except (OSError, fs.errors.FSError, UnicodeError, csv.Error, IndexError, StopIteration) as error:
+            self.notify_post_validation_error(f"Could not read post files: {error}")
+            return
         self.num_groups = len(self.groups)
+        if not self.num_groups:
+            self.notify_post_validation_error("No groups match these filters. Check filters.txt and groups.csv.")
+            return
+        if any(not text for text in descriptions):
+            self.notify_post_validation_error("Descriptions contain empty text. Fill in each .txt file before publishing.")
+            return
+        self.query_one("#preview-text", Label).update(f"{post} / Ready to publish")
+        for section, heading, body in [
+            ("description", f"DESCRIPTION / {len(descriptions)} variants", "Random selection during publishing. Sample:\n\n" + descriptions[0]),
+            ("images", f"IMAGES / {len(images)} files", "\n".join(fs.path.basename(path) for path in images)),
+            ("groups", f"DESTINATIONS / {self.num_groups} groups", "\n".join(f"{group[0]} — {group[1]}" for group in self.groups)),
+        ]:
+            self.query_one(f"#{section}-heading", Label).update(heading)
+            self.query_one(f"#preview-{section}", Label).update(body)
+        self.query_one("#preview-details").display = True
+        self.post_ready = True
+        start.disabled = False
+        start.label = f"Publish to {self.num_groups} groups"
 
         # Show extra information
 
@@ -279,11 +320,15 @@ class Publish(Screen):
         )
         extra_info.display = "block"
 
+    @on(Button.Pressed, "#recheck")
+    def recheck(self) -> None:
+        self.select_changed(Select.Changed(self.query_one(Select), self.query_one(Select).value))
+
     @on(Button.Pressed, "#start")
     def start_publish(self) -> None:
         select = self.query_one(Select)
 
-        if (post := select.value) == Select.NULL:
+        if (post := select.value) == Select.NULL or not self.post_ready:
             self.app.notify("Select a post", severity="warning")
             return
 
@@ -292,6 +337,7 @@ class Publish(Screen):
 
         # Disable the select
         select.disabled = True
+        self.query_one("#recheck", Button).disabled = True
 
         # Start the publication process
         self.start_process(post)
@@ -659,7 +705,8 @@ class Publish(Screen):
             self.notify(e.message, severity="error")
 
     def notify_post_validation_error(self, msg: str) -> None:
-        self.notify(msg, severity="error")
+        self.validation_errors.append(msg)
+        self.query_one("#validation-errors", Label).update("Please fix these issues, then choose Check again:\n" + "\n".join(self.validation_errors))
 
     def validate_path(
         self,
@@ -678,8 +725,8 @@ class Publish(Screen):
         :raise fs.opener.errors.OpenerError: Opening a filesystem with an invalid path.
         """
         folder, resource = fs.path.split(path)
-        res_s = f"[b]{resource}[/]"
-        type_s = f"[b]{type_}[/]"
+        res_s = resource
+        type_s = type_
         is_valid = True
 
         try:
@@ -724,7 +771,7 @@ class Publish(Screen):
                         )
 
                         is_valid = False
-        except OpenerError:
+        except (OpenerError, fs.errors.FSError):
             self.notify_post_validation_error(f"Path {folder} does not exist")
 
             is_valid = False
@@ -732,22 +779,24 @@ class Publish(Screen):
         return is_valid
 
     def load_options(self):
+        self.posts_folder_path = load_configuration()["POSTS_FOLDER_PATH"]
+        options = []
         try:
-            if self.posts_folder_path == "":
+            if not self.posts_folder_path:
                 raise CreateFailed
-
             with open_fs(self.posts_folder_path) as posts_folder_fs:
-                # Find available posts
-                for folder in posts_folder_fs.filterdir(
+                options = [(folder.name, folder.name) for folder in posts_folder_fs.filterdir(
                     "/", exclude_files=["*"], exclude_dirs=["profile"]
-                ):
-                    folder_name = folder.name
-                    self.available_posts.append((folder_name, folder_name))
-        except CreateFailed:
-            self.app.notify(
-                "Invalid posts folder path, check configuration.",
-                severity="error",
+                )]
+        except (fs.errors.FSError, OpenerError):
+            pass
+        self.available_posts = sorted(options)
+        self.call_after_refresh(self.show_library_empty_state)
+
+    def show_library_empty_state(self):
+        if not self.available_posts:
+            self.query_one("#preview-text", Label).update(
+                "Your content library is empty\nAdd a post folder with images, descriptions and filters.txt. Check the library path in Settings."
             )
-            self.app.pop_screen()
-        else:
-            self.mutate_reactive(Publish.available_posts)
+            self.query_one("#recheck", Button).disabled = True
+            self.query_one("#preview-details").display = False

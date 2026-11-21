@@ -1,110 +1,153 @@
-$accent: #926ee4;
+$accent: #b4a0ff;
+$desk-ink: #edf1f7;
+$desk-muted: #a1aec2;
+$desk-line: #2c3a50;
+$desk-panel: #131e30;
 
-.header {
-    dock: top;
-    width: 100%;
-    content-align: center middle;
-    color: $accent;
-    height: 1;
-    margin: 0;
-    margin-bottom: 1;
-}
+Screen { background: #0b1220; color: $desk-ink; }
+Button { height: 3; min-height: 3; min-width: 14; margin-right: 1; background: #1c2a40; border: tall #293c56; color: $desk-ink; }
+Button:hover { background: #293957; border: tall #657b9b; }
+Button:focus { border: tall $accent; text-style: bold; }
+Button.-primary { background: #b4a0ff; border: tall #b4a0ff; color: #151125; text-style: bold; }
+Button.-primary:hover { background: #c9baff; border: tall #c9baff; }
+Button.-error { background: #73344c; border: tall #b85875; color: #fff0f3; }
+Button:disabled { opacity: 45%; }
+Input, SelectCurrent { border: tall #3b506c; background: #0b1525; }
+Input:focus, Select:focus SelectCurrent { border: tall $accent; }
+Footer { background: #131e30; color: $desk-muted; }
+Footer > .footer-key--key { background: #26324c; color: $accent; }
 
-.screen-intro {
-    width: 100%;
-    text-align: center;
-    padding: 1 2;
-}
+/* Publishing desk */
+#home { height: 1fr; }
+#navigation { width: 24; height: 100%; background: #101a2b; border-right: solid $desk-line; padding: 1 2; }
+#nav-brand { height: 3; color: $accent; }
+.nav-caption { height: 1; margin: 1 0; color: #8292ad; text-style: bold; }
+#navigation Button { width: 100%; min-width: 0; margin: 0; text-align: left; background: transparent; border: tall transparent; }
+#navigation Button:hover { background: #23314a; }
+#navigation Button:focus { border: tall $accent; }
+#nav-version { dock: bottom; height: 4; color: $desk-muted; border-top: solid $desk-line; padding-top: 1; }
+#workspace { padding: 1 3; }
+#masthead { height: 3; border-bottom: solid $desk-line; margin-bottom: 1; }
+#brand { width: 1fr; color: $desk-ink; text-style: bold; height: 1; }
+#workspace-tag { color: #76d9cb; text-align: right; width: 24; height: 1; }
+#eyebrow { color: #76d9cb; height: 1; margin-bottom: 1; }
+#hero-title { height: auto; color: $desk-ink; text-style: bold; }
+#hero-description { width: 100%; height: auto; color: $desk-muted; margin: 1 0; }
+.home-row { height: auto; width: 100%; }
+#buttons { width: 80; max-width: 100%; height: auto; background: $desk-panel; border: round #6b5b9e; border-left: thick $accent; padding: 1 2; margin: 1 0; }
+.card-kicker { color: #76d9cb; height: 1; }
+.card-title { text-style: bold; width: 100%; height: auto; margin-top: 1; }
+.card-description { color: $desk-muted; width: 100%; height: auto; margin-bottom: 1; }
+#publish { width: 100%; margin: 0; }
+#connection-card { width: 80; max-width: 100%; height: auto; background: $desk-panel; border: round $desk-line; padding: 1 2; }
+#connection-copy { width: 1fr; height: auto; }
+#manual-mode { width: 18; margin: 1 0 0 2; }
+#desk-signoff { color: #8292ad; width: 100%; height: 1; text-align: center; margin-top: 1; }
+#home.compact #navigation { dock: bottom; layout: horizontal; width: 100%; height: 3; padding: 0; border: none; border-top: solid $desk-line; }
+#home.compact #navigation Button { width: 1fr; height: 3; text-align: center; }
+#home.compact #nav-brand, #home.compact .nav-caption, #home.compact #nav-version { display: none; }
+#home.compact #workspace { padding: 0 2; }
+#home.compact #masthead { height: 2; margin-bottom: 0; }
+#home.compact #eyebrow { margin-bottom: 0; }
+#home.compact #hero-title { height: auto; }
+#home.compact #hero-description { margin: 0; }
+#home.compact #buttons { padding: 0 1; margin: 1 0 0 0; }
+#home.compact .card-title { margin-top: 0; }
+#home.compact .card-description { margin-bottom: 0; }
+#home.compact #connection-card { padding: 0 1; }
+#home.compact #manual-mode { margin: 0 0 0 1; }
+#home.compact #desk-signoff { display: none; }
 
-#buttons {
-    grid-size: 1;
-    grid-gutter: 1 2;
-    height: auto;
-    align-horizontal: center;
-}
+/* Shared page hierarchy */
+Configuration, Publish, History { padding: 1 2; }
+.page-heading { dock: top; height: 4; border-bottom: solid $desk-line; margin-bottom: 1; }
+.page-title { text-style: bold; color: $desk-ink; height: 1; }
+.page-subtitle { color: $desk-muted; height: 1; width: 100%; }
+.section-title { color: #76d9cb; text-style: bold; height: 1; margin-bottom: 1; }
+.hint { color: $desk-muted; height: auto; width: 100%; }
+.field-error, #validation-errors { color: #ffa3b2; height: auto; width: 100%; }
+.action-bar { height: auto; layout: horizontal; padding-top: 1; }
 
-MachineId {
-    align: center middle;
+/* Content studio */
+#publish-steps { color: $accent; height: 1; margin-bottom: 1; }
+Publish #publish-controls { height: auto; }
+Publish #post-selector { height: auto; margin-bottom: 1; }
+Publish #publish-actions { height: auto; margin-bottom: 1; }
+Publish #start { min-width: 28; }
+Publish #studio-panels { height: 1fr; }
+Publish #preview { width: 1fr; height: 100%; border: round #6b5b9e; background: $desk-panel; padding: 0 1; }
+Publish #preview-text { height: auto; width: 100%; }
+Publish #activity { width: 1fr; height: 100%; min-height: 3; padding: 0 1; margin-left: 1; border: round $desk-line; background: #0e1828; }
+Publish RichLog { height: 1fr; background: #0e1828; }
+Publish.started #preview, Publish.started #recheck { display: none; }
+Publish.started #activity { width: 1fr; margin: 0; }
+Publish #close { margin-top: 0; }
+Publish Center { height: auto; }
+Publish.compact #studio-panels { layout: vertical; }
+Publish.compact #preview { height: 2fr; width: 100%; }
+Publish.compact #activity { height: 1fr; width: 100%; margin: 1 0 0 0; }
+Publish.compact.started #activity { height: 1fr; margin: 0; }
+Publish.compact .page-heading { height: 3; margin-bottom: 0; }
+Publish.compact #publish-steps { margin-bottom: 0; }
+Publish.compact #post-selector { margin-bottom: 0; }
 
-    Grid {
-        grid-size: 2;
-        grid-rows: 1fr auto;
-        grid-gutter: 1 2;
-        width: 1fr;
-        max-width: 60;
-        height: 12;
-        padding: 0 1;
-        border: thick $background 80%;
-        background: $surface;
-        align: center middle;
+/* Settings cards */
+Configuration #settings-body { align-horizontal: center; }
+Configuration .setting-card { width: 100%; max-width: 100; height: auto; background: $desk-panel; border: round $desk-line; padding: 1 2; margin-bottom: 1; }
+Configuration .label { width: 28; height: auto; color: $accent; text-style: bold; }
+Configuration .input-container { width: 1fr; height: auto; }
+Configuration.compact .setting-card { layout: vertical; padding: 0 1; }
+Configuration.compact .label { width: 100%; margin-bottom: 0; }
+Configuration.compact .input-container { width: 100%; }
 
-        Label {
-            column-span: 2;
-            width: 1fr;
-            content-align: center middle;
-        }
+/* Archive */
+History #history-panel { width: 100%; height: 1fr; background: $desk-panel; border: round $desk-line; padding: 0 1; }
+History DataTable { width: 100%; height: 1fr; }
+DataTable > .datatable--header { background: #24324c; color: #c8baff; text-style: bold; }
+DataTable > .datatable--odd-row { background: #131e30; }
+DataTable > .datatable--even-row { background: #0e1828; }
+DataTable > .datatable--cursor { background: #b4a0ff; color: #151125; }
+History Center { height: auto; margin-top: 0; }
 
-        Button {
-            width: 1fr;
-            height: auto;
-        }
-    }
-}
+/* Dialog family */
+ModalScreen { background: #050b14 80%; align: center middle; }
+MachineId Grid, About Grid, ManualMode Grid { width: 64; max-width: 95%; max-height: 95%; padding: 1 2; background: $desk-panel; border: round #6b5b9e; border-top: thick $accent; }
+.modal-title { color: $accent; text-style: bold; }
+MachineId Grid { grid-size: 2; grid-gutter: 1; height: 13; }
+MachineId Label { column-span: 2; width: 100%; height: auto; text-align: center; }
+MachineId Button { width: 100%; margin: 0; }
+About Grid { grid-size: 1; height: 18; }
+About Center { layout: horizontal; height: auto; }
+About Button, ManualMode Button { width: 100%; margin: 0; }
+ManualMode Grid { grid-size: 1; grid-rows: 1fr auto; height: 15; }
 
-Configuration {
-    padding: 1 2;
+Publish.compact #activity { display: none; }
+Publish.compact.started #activity { display: block; }
+Publish.compact #preview { height: 1fr; }
+Publish .activity-placeholder { height: auto; width: 100%; color: $desk-muted; }
+Publish.started .activity-placeholder { display: none; }
 
-    VerticalScroll {
-        align-horizontal: center;
+Publish #progress-area { display: none; }
+Publish.started #progress-area { display: block; }
+Publish.compact #post-selector Select { margin: 0; }
+Publish.compact #publish-actions { margin-bottom: 0; }
+Publish.compact #studio-panels { margin-bottom: 0; }
+Publish.compact .action-bar { padding-top: 0; }
 
-        Horizontal {
-            max-width: 90;
-            height: auto;
-            margin-bottom: 1;
+ManualMode Grid { grid-rows: auto 1fr auto; height: 17; }
+ManualMode .modal-title { height: 1; content-align: left top; }
 
-            & .label {
-                height: 100%;
-                width: 1fr;
-                content-align: center middle;
-                text-align: center;
-            }
+/* Field states and navigation. */
+Button:disabled { opacity: 100%; background: #253149; color: #aebbd0; border: tall #34415a; }
+Input.field-invalid, Input.field-invalid:focus { border: tall #ff9aaa; }
+Input.field-valid, Input.field-valid:focus { border: tall #76d9cb; }
+.field-status { color: #76d9cb; height: auto; }
+.field-status:empty, .field-error:empty { display: none; }
+#preview-details { height: auto; display: none; }
+.preview-block { height: auto; border-top: solid #2c3a50; margin-top: 1; padding-top: 1; }
+.preview-body { width: 100%; height: auto; }
+.empty-state { width: 100%; height: auto; padding: 1; color: #aebbd0; }
+#history-empty { border: round #3b506c; margin: 1 0; padding: 2; }
+.action-bar { min-height: 3; padding-top: 0; }
 
-            & .input-container {
-                height: auto;
-                width: 3fr;
-                max-width: 50;
-            }
-        }
-    }
-
-    Center {
-        layout: horizontal;
-
-        Button {
-            margin-left: 1;
-        }
-    }
-}
-
-About {
-    align: center middle;
-
-    Grid {
-        grid-size: 1;
-        height: 15;
-        width: 1fr;
-        max-width: 60;
-        padding: 0 1;
-        align: center middle;
-        border: thick $background 80%;
-        background: $surface;
-    }
-
-    Center {
-        layout: horizontal;
-    }
-
-    Button {
-        width: 100%;
-    }
-}
+WorkspaceScreen.compact .page-heading { height: 3; margin-bottom: 0; }
