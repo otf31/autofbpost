@@ -3,12 +3,9 @@ import re
 import secrets
 from asyncio import sleep
 from datetime import datetime
+from pathlib import Path
 from typing import Literal
 
-import fs
-from fs import open_fs
-from fs.errors import CreateFailed
-from fs.opener.errors import OpenerError
 from playwright.async_api import Error, Page, async_playwright, expect
 from rich.pretty import Pretty
 from textual import on, work
@@ -26,6 +23,7 @@ from common_functions import (
     wait_random_seconds,
 )
 from constants import SUPPORTED_FB_LANGUAGES, HiSTORY_FILE_PATH
+from storage import local_files, matching_files
 from ui import PageHeading, WorkspaceScreen
 
 
@@ -47,11 +45,8 @@ def read_filters(filters_file_path: str) -> list[str]:
     :param filters_file_path: The filters file path.
     :return: A list of filters.
     """
-    folder, file = fs.path.split(filters_file_path)
-
-    with open_fs(folder) as dir_fs:
-        with dir_fs.open(file) as filters_file:
-            text = filters_file.read()
+    with local_files.open(filters_file_path, "rt", encoding="utf-8") as filters_file:
+        text = filters_file.read()
 
     return [f.strip().lower() for f in text.split(",")]
 
@@ -67,16 +62,10 @@ def read_groups(
     """
     system_random = secrets.SystemRandom()
     groups = []
-    folder, resource = fs.path.split(groups_file_path)
-
-    with open_fs(folder) as dir_fs:
-        with dir_fs.open(resource) as groups_file:
-            reader = csv.reader(groups_file, delimiter=";")
-
-            # Skip the header
-            next(reader)
-
-            rows = list(reader)
+    with local_files.open(groups_file_path, "rt", encoding="utf-8", newline="") as groups_file:
+        reader = csv.reader(groups_file, delimiter=";")
+        next(reader)
+        rows = list(reader)
 
     for row in rows:
         group_filters = [gf.strip().lower() for gf in row[2].split(",")]
@@ -98,12 +87,9 @@ def get_descriptions(descriptions_folder_path: str) -> list[str]:
     """
     descriptions: list[str] = []
 
-    with open_fs(descriptions_folder_path) as descriptions_fs:
-        d = descriptions_fs.filterdir("/", files=["*.txt"], exclude_dirs=["*"])
-
-        for file in d:
-            with descriptions_fs.open(file.name) as description_file:
-                descriptions.append(description_file.read().strip())
+    for path in matching_files(descriptions_folder_path, ["*.txt"]):
+        with local_files.open(path, "rt", encoding="utf-8") as description_file:
+            descriptions.append(description_file.read().strip())
 
     return descriptions
 
@@ -121,15 +107,7 @@ def get_images(images_folder_path: str) -> list[str]:
             for text in re.split(r"(\d+)", s)
         ]
 
-    images = []
-
-    with open_fs(images_folder_path) as images_fs:
-        i = images_fs.filterdir(
-            "/", files=["*.jpg", "*.jpeg", "*.png"], exclude_dirs=["*"]
-        )
-
-        for file in i:
-            images.append(images_fs.getsyspath(file.name))
+    images = matching_files(images_folder_path, ["*.jpg", "*.jpeg", "*.png"])
 
     return sorted(images, key=natural_sort_key)
 
@@ -255,11 +233,11 @@ class Publish(WorkspaceScreen):
 
             return
 
-        self.post_path = fs.path.combine(self.posts_folder_path, post)
-        self.images_folder_path = fs.path.combine(self.post_path, "images")
-        self.descriptions_folder_path = fs.path.combine(self.post_path, "descriptions")
-        self.filters_file_path = fs.path.combine(self.post_path, "filters.txt")
-        self.groups_file_path = fs.path.combine(self.posts_folder_path, "groups.csv")
+        self.post_path = str(Path(self.posts_folder_path) / post)
+        self.images_folder_path = str(Path(self.post_path) / "images")
+        self.descriptions_folder_path = str(Path(self.post_path) / "descriptions")
+        self.filters_file_path = str(Path(self.post_path) / "filters.txt")
+        self.groups_file_path = str(Path(self.posts_folder_path) / "groups.csv")
 
         # Validate images folder
         first_validation = self.validate_path(
@@ -290,7 +268,7 @@ class Publish(WorkspaceScreen):
             self.groups = read_groups(self.groups_file_path, self.publication_filters)
             images = get_images(self.images_folder_path)
             descriptions = get_descriptions(self.descriptions_folder_path)
-        except (OSError, fs.errors.FSError, UnicodeError, csv.Error, IndexError, StopIteration) as error:
+        except (OSError, UnicodeError, csv.Error, IndexError, StopIteration) as error:
             self.notify_post_validation_error(f"Could not read post files: {error}")
             return
         self.num_groups = len(self.groups)
@@ -303,7 +281,7 @@ class Publish(WorkspaceScreen):
         self.query_one("#preview-text", Label).update(f"{post} / Ready to publish")
         for section, heading, body in [
             ("description", f"DESCRIPTION / {len(descriptions)} variants", "Random selection during publishing. Sample:\n\n" + descriptions[0]),
-            ("images", f"IMAGES / {len(images)} files", "\n".join(fs.path.basename(path) for path in images)),
+            ("images", f"IMAGES / {len(images)} files", "\n".join(Path(path).name for path in images)),
             ("groups", f"DESTINATIONS / {self.num_groups} groups", "\n".join(f"{group[0]} — {group[1]}" for group in self.groups)),
         ]:
             self.query_one(f"#{section}-heading", Label).update(heading)
@@ -347,7 +325,7 @@ class Publish(WorkspaceScreen):
         config = load_configuration()
         chrome_binary_path = config["CHROME_BINARY_PATH"]
         posts_folder_path = config["POSTS_FOLDER_PATH"]
-        chrome_data_dir = fs.path.combine(posts_folder_path, "/profile")
+        chrome_data_dir = str(Path(posts_folder_path) / "profile")
         headless = config["HEADLESS"]
         log = self.query_one(RichLog)
         progress_bar = self.query_one(ProgressBar)
@@ -667,21 +645,13 @@ class Publish(WorkspaceScreen):
                     num_failed,
                 ]
 
-                with open_fs(posts_folder_path) as posts_folder_fs:
-                    history_file_path = HiSTORY_FILE_PATH
-
-                    if not posts_folder_fs.exists(history_file_path):
-                        with posts_folder_fs.open(
-                            history_file_path, "w"
-                        ) as history_file:
-                            writer = csv.writer(history_file, delimiter=";")
-
-                            writer.writerow(headers)
-
-                    with posts_folder_fs.open(history_file_path, "a") as history_file:
-                        writer = csv.writer(history_file, delimiter=";")
-
-                        writer.writerow(line)
+                history_file_path = str(Path(posts_folder_path) / HiSTORY_FILE_PATH)
+                needs_header = not local_files.exists(history_file_path) or local_files.size(history_file_path) == 0
+                with local_files.open(history_file_path, "at", encoding="utf-8", newline="") as history_file:
+                    writer = csv.writer(history_file, delimiter=";")
+                    if needs_header:
+                        writer.writerow(headers)
+                    writer.writerow(line)
 
                 # Remove .started class
                 self.started = False
@@ -722,73 +692,43 @@ class Publish(WorkspaceScreen):
         :param min_files: If the resource is a directory,
             the minimum number of files it must contain. Default is None.
         :param dir_file_type: The file types to filter in a directory. Default is None.
-        :raise fs.opener.errors.OpenerError: Opening a filesystem with an invalid path.
         """
-        folder, resource = fs.path.split(path)
-        res_s = resource
-        type_s = type_
-        is_valid = True
-
+        resource = Path(path).name
         try:
-            with open_fs(folder) as root_fs:
-                if not root_fs.exists(resource):
-                    self.notify_post_validation_error(
-                        f"Resource {res_s} of type {type_s} does not exist in {folder}"
-                    )
-
+            if not local_files.exists(path):
+                self.notify_post_validation_error(f"Resource {resource} of type {type_} does not exist in {Path(path).parent}")
+                return False
+            if type_ == "file":
+                if not local_files.isfile(path):
+                    self.notify_post_validation_error(f"{resource} is not a file")
                     return False
-
-                if type_ == "file":
-                    if not root_fs.isfile(resource):
-                        self.notify_post_validation_error(f"{res_s} is not a file")
-
-                        is_valid = False
-                    elif root_fs.getsize(resource) == 0:
-                        self.notify_post_validation_error(f"File {res_s} is empty")
-
-                        is_valid = False
-                elif type_ == "dir":
-                    if not root_fs.isdir(resource):
-                        self.notify_post_validation_error(f"{res_s} is not a directory")
-
-                        is_valid = False
-                    elif not root_fs.listdir(resource):
-                        self.notify_post_validation_error(f"Folder {res_s} is empty")
-
-                        is_valid = False
-                    elif (
-                        min_files is not None
-                        and
-                        len(
-                            list(
-                                root_fs.filterdir(resource, files=dir_file_type, exclude_dirs=["*"])
-                            )
-                        ) < min_files
-                    ):
-                        self.notify_post_validation_error(
-                            f"Folder {res_s} must contain at least {min_files} files "
-                            f"with type {dir_file_type}."
-                        )
-
-                        is_valid = False
-        except (OpenerError, fs.errors.FSError):
-            self.notify_post_validation_error(f"Path {folder} does not exist")
-
-            is_valid = False
-
-        return is_valid
+                if local_files.size(path) == 0:
+                    self.notify_post_validation_error(f"File {resource} is empty")
+                    return False
+            else:
+                if not local_files.isdir(path):
+                    self.notify_post_validation_error(f"{resource} is not a directory")
+                    return False
+                if not local_files.ls(path):
+                    self.notify_post_validation_error(f"Folder {resource} is empty")
+                    return False
+                if min_files is not None and len(matching_files(path, dir_file_type)) < min_files:
+                    self.notify_post_validation_error(f"Folder {resource} must contain at least {min_files} files with type {dir_file_type}.")
+                    return False
+        except OSError as error:
+            self.notify_post_validation_error(f"Could not access {path}: {error}")
+            return False
+        return True
 
     def load_options(self):
         self.posts_folder_path = load_configuration()["POSTS_FOLDER_PATH"]
         options = []
         try:
-            if not self.posts_folder_path:
-                raise CreateFailed
-            with open_fs(self.posts_folder_path) as posts_folder_fs:
-                options = [(folder.name, folder.name) for folder in posts_folder_fs.filterdir(
-                    "/", exclude_files=["*"], exclude_dirs=["profile"]
-                )]
-        except (fs.errors.FSError, OpenerError):
+            if self.posts_folder_path:
+                options = [(Path(entry["name"]).name, Path(entry["name"]).name)
+                           for entry in local_files.ls(self.posts_folder_path, detail=True)
+                           if entry["type"] == "directory" and Path(entry["name"]).name != "profile"]
+        except OSError:
             pass
         self.available_posts = sorted(options)
         self.call_after_refresh(self.show_library_empty_state)

@@ -1,13 +1,13 @@
 import csv
+from pathlib import Path
 
-from fs import open_fs
-from fs.errors import FSError
 from textual.app import ComposeResult
 from textual.containers import Center, Container
 from textual.widgets import Button, DataTable, Label
 
 from common_functions import load_configuration
 from constants import HiSTORY_FILE_PATH
+from storage import local_files
 from ui import PageHeading, WorkspaceScreen
 
 
@@ -54,17 +54,16 @@ class History(WorkspaceScreen):
 
         empty = self.query_one("#history-empty", Label)
         try:
-            with open_fs(self.posts_folder_path) as posts_folder_fs:
-                with posts_folder_fs.open(HiSTORY_FILE_PATH) as history_file:
-                    reader = csv.reader(history_file, delimiter=";")
-                    header = next(reader, None)
-                    if header:
-                        data_table.add_columns(*header)
-                        for row in reader:
-                            if row:
-                                data_table.add_row(*row)
+            with local_files.open(str(Path(self.posts_folder_path) / HiSTORY_FILE_PATH), "rt", encoding="utf-8", newline="") as history_file:
+                reader = csv.reader(history_file, delimiter=";")
+                header = next(reader, None)
+                if header:
+                    data_table.add_columns(*header)
+                    for row in reader:
+                        if row:
+                            data_table.add_row(*row)
             empty.update("No publications yet\nYour publishing activity will appear here after your first run.")
-        except (FSError, OSError, UnicodeError, csv.Error):
+        except (OSError, UnicodeError, csv.Error):
             empty.update("No history available\nCheck your content library in Settings, or publish to create your first record.")
         data_table.display = data_table.row_count > 0
         empty.display = not data_table.display

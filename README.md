@@ -174,7 +174,7 @@ tui/
 - **[Textual](https://textual.textualize.io/)**: TUI framework for Python
 - **[Playwright](https://playwright.dev/python/)**: Browser automation
 - **[httpx](https://www.python-httpx.org/)**: Async HTTP client
-- **[fs](https://docs.pyfilesystem.org/)**: Virtual filesystem
+- **[fsspec](https://filesystem-spec.readthedocs.io/)**: Filesystem access
 - **[rtoml](https://github.com/sethmlarson/rtoml)**: TOML parser in Rust
 
 ## ⚠️ Warnings

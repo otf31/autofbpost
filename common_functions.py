@@ -5,15 +5,14 @@ from json import JSONDecodeError
 from pathlib import Path
 from typing import Any, Callable, Literal, TypedDict
 
-import fs.path
 import rtoml
-from fs import open_fs
-from fs.appfs import UserConfigFS
+from platformdirs import user_config_dir
 from rich.console import group
 from rich.panel import Panel
 from typing_extensions import TypeVar
 
 from constants import APP_NAME, CONFIG_FILE_PATH, DEFAULT_CONFIG
+from storage import local_files
 
 
 class Config(TypedDict):
@@ -92,28 +91,29 @@ async def wait_random_seconds(start: int, end: int = None) -> None:
     await sleep(secrets.randbelow(end - start + 1) + start)
 
 
+def configuration_path() -> str:
+    """Keep the per-user location previously used by UserConfigFS."""
+    return str(Path(user_config_dir(APP_NAME, appauthor=None)) / CONFIG_FILE_PATH)
+
+
 def validate_conf_file() -> None:
     """
     Create if the configuration file does not exists and write with the default
     configuration. If the configuration file exists but it does not have valid keys,
     it will be overwritten with the default configuration.
     """
-    with UserConfigFS(APP_NAME) as user_config_fs:
-        # Create if it does not exist
-        if not (user_config_fs.exists(CONFIG_FILE_PATH)):
+    path = configuration_path()
+    if not local_files.exists(path):
+        write_conf_file(DEFAULT_CONFIG)
+        return
+    try:
+        with local_files.open(path, "rt", encoding="utf-8") as config_file:
+            config = json.load(config_file)
+    except JSONDecodeError:
+        write_conf_file(DEFAULT_CONFIG)
+    else:
+        if not isinstance(config, dict) or not all(key in config for key in DEFAULT_CONFIG):
             write_conf_file(DEFAULT_CONFIG)
-        else:
-            # Check if the configuration file has valid keys
-            try:
-                with user_config_fs.open(CONFIG_FILE_PATH) as config_file:
-                    config = json.load(config_file)
-            except JSONDecodeError:
-                write_conf_file(DEFAULT_CONFIG)
-            else:
-                keys = DEFAULT_CONFIG.keys()
-
-                if not all(key in config for key in keys):
-                    write_conf_file(DEFAULT_CONFIG)
 
 
 def load_configuration() -> Config:
@@ -122,12 +122,8 @@ def load_configuration() -> Config:
     :return: The configuration dictionary.
     """
     validate_conf_file()
-
-    with UserConfigFS(APP_NAME) as user_config_fs:
-        with user_config_fs.open(CONFIG_FILE_PATH) as config_file:
-            config = json.load(config_file)
-
-    return config
+    with local_files.open(configuration_path(), "rt", encoding="utf-8") as config_file:
+        return json.load(config_file)
 
 
 def write_conf_file(config: Config) -> None:
@@ -135,9 +131,10 @@ def write_conf_file(config: Config) -> None:
     Write a configuration file.
     :param config: The configuration dictionary.
     """
-    with UserConfigFS(APP_NAME) as user_config_fs:
-        with user_config_fs.open(CONFIG_FILE_PATH, "w") as config_file:
-            json.dump(config, config_file, indent=4)  # type: ignore
+    path = configuration_path()
+    local_files.makedirs(str(Path(path).parent), exist_ok=True)
+    with local_files.open(path, "wt", encoding="utf-8") as config_file:
+        json.dump(config, config_file, indent=4)
 
 
 def get_locales_fb_strings(lang: str) -> dict[str, dict[str, str] | str]:
@@ -146,11 +143,9 @@ def get_locales_fb_strings(lang: str) -> dict[str, dict[str, str] | str]:
     :param lang: The language code.
     :return: The Facebook strings depending on the language.
     """
-    with open_fs(
-        fs.path.join(get_executable_dir_location(), "locales_fb")
-    ) as locales_fb:
-        with locales_fb.open(f"{lang}.toml") as locale_file:
-            return rtoml.load(locale_file)
+    path = Path(get_executable_dir_location()) / "locales_fb" / f"{lang}.toml"
+    with local_files.open(str(path), "rt", encoding="utf-8") as locale_file:
+        return rtoml.load(locale_file)
 
 
 def get_executable_dir_location() -> str:

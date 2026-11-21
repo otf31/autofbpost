@@ -1,4 +1,5 @@
-import fs
+from pathlib import Path
+
 from playwright.async_api import Error, async_playwright
 from textual import work
 from textual.app import ComposeResult
@@ -57,7 +58,7 @@ class ManualMode(ModalScreen[None]):
         config = load_configuration()
         chrome_binary_path = config["CHROME_BINARY_PATH"]
         posts_folder_path = config["POSTS_FOLDER_PATH"]
-        chrome_data_dir = fs.path.combine(posts_folder_path, "/profile")
+        chrome_data_dir = str(Path(posts_folder_path) / "profile")
         headless = False
 
         try:
